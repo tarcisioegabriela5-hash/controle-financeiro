@@ -5,10 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Controle Financeiro</title>
   
-  <!-- Conectando o arquivo de estilo (CSS) -->
   <link rel="stylesheet" href="style.css">
   
-  <!-- Biblioteca de Gráficos -->
+  <!-- Biblioteca do Banco de Dados Supabase -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  
+  <!-- Biblioteca de Gráficos Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
@@ -107,6 +109,7 @@
           <th>Tipo</th>
           <th>Categoria</th>
           <th>Valor (R$)</th>
+          <th>Ações</th>
         </tr>
       </thead>
       <tbody id="tabela-corpo"></tbody>
