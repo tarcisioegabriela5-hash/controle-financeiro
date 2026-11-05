@@ -1,7 +1,17 @@
-// Busca as transações salvas ou inicializa uma lista vazia
-let transacoes = JSON.parse(localStorage.getItem('minhas_transacoes')) || [];
+// =========================================================================
+// 1. CONFIGURAÇÃO DO SUPABASE
+// Substitua o conteúdo das aspas simples abaixo com os seus dados:
+// =========================================================================
+const SUPABASE_URL = 'https://rzzbqihwoyeccokslgxl.supabase.co/rest/v1/';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ6emJxaWh3b3llY2Nva3NsZ3hsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM5MTM0MDksImV4cCI6MjEwOTQ4OTQwOX0.tJZG4GtkAYlvKPkRFkd7BtRDAxY0mICwoJA_vt4efMs';
 
-// Variáveis para guardar as instâncias dos gráficos
+
+// Inicializa a conexão com a nuvem
+const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// Variáveis de estado global
+let transacoes = [];
+
 let meuGraficoDespesas = null;
 let meuGraficoReceitas = null;
 let meuGraficoTemporal = null;
@@ -12,58 +22,97 @@ const tabelaCorpo = document.getElementById('tabela-corpo');
 const saldoTotalElemento = document.getElementById('saldo-total');
 const filtroMesAno = document.getElementById('filtro-mes-ano');
 
-// Define o mês atual como padrão no filtro (AAAA-MM)
+// Define mês atual como padrão no filtro (AAAA-MM)
 const hoje = new Date();
-const mesAtualStr = hoje.toISOString().slice(0, 7);
-filtroMesAno.value = mesAtualStr;
+filtroMesAno.value = hoje.toISOString().slice(0, 7);
 
-// Escuta a mudança no seletor de mês
+// Escuta a mudança de mês no filtro
 filtroMesAno.addEventListener('change', atualizarInterface);
 
-// Carrega os dados na tela assim que abre a página
-atualizarInterface();
+// Carrega os dados da nuvem assim que a página abre
+carregarDadosDoBanco();
 
-// Evento de envio do formulário
-form.addEventListener('submit', function(event) {
+// =========================================================================
+// 2. FUNÇÕES DE BANCO DE DADOS (SUPABASE)
+// =========================================================================
+
+// A. Buscar dados diretamente da nuvem
+async function carregarDadosDoBanco() {
+  const { data, error } = await supabaseClient
+    .from('transacoes')
+    .select('*');
+
+  if (error) {
+    console.error('Erro ao buscar dados do Supabase:', error);
+    alert('Erro ao carregar dados do banco de dados na nuvem.');
+    return;
+  }
+
+  transacoes = data || [];
+  atualizarInterface();
+}
+
+// B. Salvar um novo lançamento no banco de dados
+form.addEventListener('submit', async function(event) {
   event.preventDefault();
 
-  const descricao = document.getElementById('descricao').value;
-  const valor = parseFloat(document.getElementById('valor').value);
-  const tipo = document.getElementById('tipo').value;
-  const categoria = document.getElementById('categoria').value;
-  const data = document.getElementById('data').value;
-
   const novaTransacao = {
-    descricao: descricao,
-    valor: valor,
-    tipo: tipo,
-    categoria: categoria,
-    data: data
+    descricao: document.getElementById('descricao').value,
+    valor: parseFloat(document.getElementById('valor').value),
+    tipo: document.getElementById('tipo').value,
+    categoria: document.getElementById('categoria').value,
+    data: document.getElementById('data').value
   };
 
-  transacoes.push(novaTransacao);
-  salvarNoNavegador();
+  const { data, error } = await supabaseClient
+    .from('transacoes')
+    .insert([novaTransacao])
+    .select();
 
-  // Ajusta o filtro para o mês do item recém-cadastrado
-  filtroMesAno.value = data.slice(0, 7);
+  if (error) {
+    console.error('Erro ao salvar no Supabase:', error);
+    alert('Erro ao salvar lançamento no banco de dados!');
+    return;
+  }
 
+  // Adiciona o item salvo à lista local e ajusta o filtro de mês
+  transacoes.push(data[0]);
+  filtroMesAno.value = novaTransacao.data.slice(0, 7);
+  
   atualizarInterface();
   form.reset();
 });
 
-// Salva o array de transações no localStorage
-function salvarNoNavegador() {
-  localStorage.setItem('minhas_transacoes', JSON.stringify(transacoes));
+// C. Deletar lançamento do banco de dados
+async function deletarTransacao(id) {
+  if (!confirm('Deseja realmente apagar este lançamento?')) return;
+
+  const { error } = await supabaseClient
+    .from('transacoes')
+    .delete()
+    .eq('id', id);
+
+  if (error) {
+    console.error('Erro ao excluir do Supabase:', error);
+    alert('Erro ao apagar o registro no banco.');
+    return;
+  }
+
+  transacoes = transacoes.filter(t => t.id !== id);
+  atualizarInterface();
 }
 
-// Atualiza a tabela, o saldo e chama a atualização dos gráficos
+// =========================================================================
+// 3. INTERFACE E TABELA
+// =========================================================================
+
 function atualizarInterface() {
   const mesSelecionado = filtroMesAno.value; // Ex: "2026-11"
 
-  // 1. Filtrar lançamentos apenas do mês selecionado
+  // Filtrar lançamentos apenas do mês selecionado
   const transacoesDoMes = transacoes.filter(t => t.data.startsWith(mesSelecionado));
 
-  // Ordenar lançamentos do mês por data (mais antigo -> mais recente)
+  // Ordenar por data (mais antigo -> mais recente)
   transacoesDoMes.sort((a, b) => new Date(a.data) - new Date(b.data));
 
   tabelaCorpo.innerHTML = '';
@@ -76,7 +125,6 @@ function atualizarInterface() {
       saldoMes -= item.valor;
     }
 
-    // Classes de cores do CSS (valor-receita / valor-despesa)
     const classeCor = item.tipo === 'RECEITA' ? 'valor-receita' : 'valor-despesa';
     const sinal = item.tipo === 'RECEITA' ? '+' : '-';
 
@@ -87,18 +135,21 @@ function atualizarInterface() {
       <td>${item.tipo}</td>
       <td>${item.categoria}</td>
       <td class="${classeCor}">${sinal} R$ ${item.valor.toFixed(2)}</td>
+      <td>
+        <button onclick="deletarTransacao(${item.id})" style="background:#ef4444; color:white; border:none; padding:6px 12px; border-radius:6px; cursor:pointer;">Apagar</button>
+      </td>
     `;
     tabelaCorpo.appendChild(linha);
   });
 
-  // Atualiza o valor na tela
   saldoTotalElemento.textContent = saldoMes.toFixed(2);
-
-  // 2. Atualizar os Gráficos
   atualizarGraficos(transacoesDoMes);
 }
 
-// Função para renderizar/atualizar os 3 gráficos
+// =========================================================================
+// 4. GRÁFICOS (CHART.JS)
+// =========================================================================
+
 function atualizarGraficos(transacoesDoMes) {
   // --- A. Pizza de Despesas do Mês ---
   const categoriasDespesas = ['Básicas', 'Provisões', 'Investimento', 'Educação', 'Outros'];
@@ -116,11 +167,10 @@ function atualizarGraficos(transacoesDoMes) {
       .reduce((soma, t) => soma + t.valor, 0);
   });
 
-  // --- C. Temporal: Acumulado Mensal (Agrupa TODAS as transações por Mês) ---
+  // --- C. Temporal: Acumulado Mensal (Todas as Transações) ---
   const acumuladoPorMes = {};
-
   transacoes.forEach(t => {
-    const mes = t.data.slice(0, 7); // Pega o ano-mês (AAAA-MM)
+    const mes = t.data.slice(0, 7);
     if (!acumuladoPorMes[mes]) {
       acumuladoPorMes[mes] = { receita: 0, despesa: 0 };
     }
@@ -131,17 +181,16 @@ function atualizarGraficos(transacoesDoMes) {
     }
   });
 
-  // Ordena os meses em ordem cronológica para o eixo X
   const mesesOrdenados = Object.keys(acumuladoPorMes).sort();
   const dadosReceitasMensais = mesesOrdenados.map(m => acumuladoPorMes[m].receita);
   const dadosDespesasMensais = mesesOrdenados.map(m => acumuladoPorMes[m].despesa);
 
-  // --- D. Destruir gráficos anteriores para evitar duplicação/sobreposição ---
+  // Destruir instâncias antigas de gráficos
   if (meuGraficoDespesas) meuGraficoDespesas.destroy();
   if (meuGraficoReceitas) meuGraficoReceitas.destroy();
   if (meuGraficoTemporal) meuGraficoTemporal.destroy();
 
-  // --- E. Renderizar Pizza Despesas ---
+  // Renderizar Pizza Despesas
   const ctxDespesas = document.getElementById('graficoPizzaDespesas').getContext('2d');
   meuGraficoDespesas = new Chart(ctxDespesas, {
     type: 'pie',
@@ -154,7 +203,7 @@ function atualizarGraficos(transacoesDoMes) {
     }
   });
 
-  // --- F. Renderizar Pizza Receitas ---
+  // Renderizar Pizza Receitas
   const ctxReceitas = document.getElementById('graficoPizzaReceitas').getContext('2d');
   meuGraficoReceitas = new Chart(ctxReceitas, {
     type: 'pie',
@@ -167,7 +216,7 @@ function atualizarGraficos(transacoesDoMes) {
     }
   });
 
-  // --- G. Renderizar Gráfico Temporal Mensal (Barras Comparativas) ---
+  // Renderizar Gráfico Temporal (Barras Comparativas)
   const ctxTemporal = document.getElementById('graficoTemporal').getContext('2d');
   meuGraficoTemporal = new Chart(ctxTemporal, {
     type: 'bar',
