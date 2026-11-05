@@ -2,7 +2,7 @@
 // 1. CONFIGURAÇÃO DO SUPABASE
 // Substitua o conteúdo das aspas simples abaixo com os seus dados:
 // =========================================================================
-const SUPABASE_URL = 'https://rzzbqihwoyeccokslgxl.supabase.co/rest/v1/';
+const SUPABASE_URL = 'https://rzzbqihwoyeccokslgxl.supabase.co/rest/v1';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ6emJxaWh3b3llY2Nva3NsZ3hsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM5MTM0MDksImV4cCI6MjEwOTQ4OTQwOX0.tJZG4GtkAYlvKPkRFkd7BtRDAxY0mICwoJA_vt4efMs';
 
 
